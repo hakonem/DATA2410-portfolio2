@@ -3,6 +3,7 @@ import argparse
 import sys
 from socket import *
 from header import *
+from stop_and_wait import stop_and_wait
 
 
 #Create argparse object with program description
@@ -71,8 +72,17 @@ def main():
                 buffer,address = serverSocket.recvfrom(1472)
                 header_from_msg = buffer[:12]
                 seq, ack_nr, flags, win = parse_header(header_from_msg)
+                # If packet contains data, send ACK
                 if len(buffer) > 12:
                     print(f'seq nr: {seq}, {buffer}')
+                    ack_nr = seq
+                    #the last 4 bits:  S A F R
+                    # 0 1 0 0  ACK flag set, and the decimal equivalent is 4
+                    flags = 4
+                    win = 64                                #Receiver window advertised by server for flow control, set to 64       
+                    data = b''
+                    ack = create_packet(seq, ack_nr, flags, win, data)
+                    serverSocket.sendto(ack, address)
                 # If FIN packet received, data transmission is complete - send ACK back to client
                 if flags == 2:
                     print('End of transmission')
@@ -157,8 +167,10 @@ def main():
             msg = create_packet(sequence_number, acknowledgment_number, flags, window, packet_data)
             print(f'seq nr: {sequence_number}, msg: {msg}')
         
+            #RELIABLE METHODS
             #Send file contents to server
-            clientSocket.sendto(msg, (args.ip_address, args.port))
+            if args.reliable_method == 'stop_and_wait':
+                stop_and_wait(msg, clientSocket, sequence_number, args.ip_address, args.port)
         
         # When data transmission is complete, send FIN packet to server
         seq = 0
