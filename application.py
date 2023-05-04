@@ -29,7 +29,7 @@ def main():
 
     #Run server first 
     elif args.server:
-        serverSocket = socket(AF_INET, SOCK_DGRAM)             #Prepare a UDP (SOCK_DGRAM) server socket using IPv4 (AF_INET)
+        serverSocket = socket(AF_INET, SOCK_DGRAM)              #Prepare a UDP server socket 
         try:
             serverSocket.bind((args.ip_address, args.port))                       
         #EXCEPTION HANDLING
@@ -39,91 +39,98 @@ def main():
         print(f'Ready to receive...')                           #Print message when socket ready to receive
 
 
-        #Wait for SYN packet from client
         while True:
+            #Wait for SYN packet from client
             buffer,address = serverSocket.recvfrom(1472)
             print(buffer)
             header_from_msg = buffer[:12]
-            seq, ack, flags, win = parse_header(header_from_msg)
-            print(f'seq={seq}, ack={ack}, flags={flags}, recevier-window={win}')
-            syn, ack, fin = parse_flags(flags)
-            print(f'syn_flag = {syn}, fin_flag={fin}, and ack_flag={ack}')
-
-            
-            if syn:
-                #Send SYN-ACK packet to client
+            seq, ack_nr, flags, win = parse_header(header_from_msg)
+            print(f'seq={seq}, ack={ack_nr}, flags={flags}, receiver-window={win}')
+            #If SYN packet received, send SYN-ACK packet to client
+            if flags == 8:
                 seq = 0
-                ack = seq + 1
+                ack_nr = 0
                 #the last 4 bits:  S A F R
                 # 1 1 0 0  SYN flag set, and the decimal equivalent is 12
                 flags = 12
-                win = 64        #Receiver window advertised by server for flow control, set to 64
+                win = 64                                #Receiver window advertised by server for flow control, set to 64       
                 data = b''
-                synack = create_packet(seq, ack, flags, win, data)
+                synack = create_packet(seq, ack_nr, flags, win, data)
                 serverSocket.sendto(synack, address)
 
-                # Wait for ACK packet from client
-                buffer,address = serverSocket.recvfrom(1472)
-                header_from_msg = buffer[:12]
-                seq, ack, flags, win = parse_header(header_from_msg)
-                syn, ack, fin = parse_flags(flags)
-                if ack == seq + 1:
-                    print("Connection established.")
-                    break
+            # Wait for ACK packet from client
+            buffer,address = serverSocket.recvfrom(1472)
+            header_from_msg = buffer[:12]
+            seq, ack_nr, flags, win = parse_header(header_from_msg)
+            #If ACK packet received, connection is established
+            if flags == 4:
+                print("Connection established.")
             
             # Wait for data packets from client
             while True:
                 buffer,address = serverSocket.recvfrom(1472)
                 header_from_msg = buffer[:12]
-                seq, ack, flags, win = parse_header(header_from_msg)
-                syn, ack, fin = parse_flags(flags)
+                seq, ack_nr, flags, win = parse_header(header_from_msg)
                 if len(buffer) > 12:
-                    print(buffer)
-            
+                    print(f'seq nr: {seq}, {buffer}')
+                # If FIN packet received, data transmission is complete - send ACK back to client
+                if flags == 2:
+                    print('End of transmission')
+                    seq = 0
+                    ack_nr = 0
+                    #the last 4 bits:  S A F R
+                    # 0 1 0 0  ACK flag set, and the decimal equivalent is 4
+                    flags = 4                                               
+                    win = 0             
+                    data = b''
+                    ack = create_packet(seq, ack_nr, flags, win, data)
+                    serverSocket.sendto(ack, address)
+                    # Close socket after all data has been sent and received
+                    print('Connection closed')
+                    break
+            serverSocket.close()
+            sys.exit()
+ 
         
     #Then run client
     else:
-        clientSocket = socket(AF_INET, SOCK_DGRAM)              #Prepare a UDP (SOCK_DGRAM) server socket using IPv4 (AF_INET)
-        clientSocket.settimeout(0.5)                     #Timeout = 500ms
+        clientSocket = socket(AF_INET, SOCK_DGRAM)              #Prepare a UDP server socket 
         #Client initiates three-way handshake with server to establish reliable connection
         #Send SYN packet to server
         seq = 0
-        ack = 0
+        ack_nr = 0
         #the last 4 bits:  S A F R
         # 1 0 0 0  SYN flag set, and the decimal equivalent is 8
         flags = 8                                               
         win = 0
         data = b''
-        syn = create_packet(seq, ack, flags, win, data)
+        syn = create_packet(seq, ack_nr, flags, win, data)
         clientSocket.sendto(syn, (args.ip_address, args.port))
 
         #Wait for SYN-ACK packet from server
         #Throw error if SYN-ACK doesn't arrive before timeout
         try:
+            clientSocket.settimeout(0.5)                     #Timeout = 500ms
             buffer,address = clientSocket.recvfrom(1472)
             header_from_msg = buffer[:12]
-            seq, ack, flags, win = parse_header(header_from_msg)
-            syn, ack, fin = parse_flags(flags)
-            syn and ack
-            socket.timeout
+            seq, ack_nr, flags, win = parse_header(header_from_msg)
+            print(f'flags: {flags}')
         except TimeoutError:
             print("Error: Timed out waiting for SYN-ACK")
             clientSocket.close()
-            sys.exit(1)
+            sys.exit()
 
         # Send ACK packet to server
         seq = 0
-        ack = 0
+        ack_nr = 0
         #the last 4 bits:  S A F R
         # 0 1 0 0  ACK flag set, and the decimal equivalent is 4
         flags = 4                                               
         win = 0
         data = b''
-        ack = create_packet(seq, ack, flags, win, data)
+        ack = create_packet(seq, ack_nr, flags, win, data)
         clientSocket.sendto(ack, (args.ip_address, args.port))
         
-            
-  
         #Open the file and read contents to a buffer
         with open(args.file, 'rb') as f:
             data = bytearray(f.read())
@@ -140,7 +147,6 @@ def main():
             print(f'start:{start}, end:{end}')
             #Slice the data 
             packet_data = data[start:end]
-            print(packet_data)
             #Pack the sequence number into the header
             sequence_number = i+1
             acknowledgment_number = 0
@@ -149,11 +155,30 @@ def main():
 
             #msg now holds a packet, including our custom header and data
             msg = create_packet(sequence_number, acknowledgment_number, flags, window, packet_data)
+            print(f'seq nr: {sequence_number}, msg: {msg}')
         
             #Send file contents to server
             clientSocket.sendto(msg, (args.ip_address, args.port))
         
-        clientSocket.close()                #Close socket
+        # When data transmission is complete, send FIN packet to server
+        seq = 0
+        ack_nr = 0
+        #the last 4 bits:  S A F R
+        # 0 0 1 0  FIN flag set, and the decimal equivalent is 2
+        flags = 2                                               
+        win = 0
+        data = b''
+        fin = create_packet(seq, ack_nr, flags, win, data)
+        clientSocket.sendto(fin, (args.ip_address, args.port))
+        
+        # Wait for ACK packet from server
+        buffer,address = clientSocket.recvfrom(1472)
+        header_from_msg = buffer[:12]
+        seq, ack_nr, flags, win = parse_header(header_from_msg)
+        if flags == 4:
+            # Close socket after all data has been sent and received
+            print('Connection closed')
+            clientSocket.close()
 
 
 if __name__ == '__main__':
