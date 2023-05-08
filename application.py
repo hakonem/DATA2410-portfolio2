@@ -165,7 +165,8 @@ def main():
 
             #msg now holds a packet, including our custom header and data
             msg = create_packet(sequence_number, acknowledgment_number, flags, window, packet_data)
-            print(f'seq nr: {sequence_number}, msg: {msg}')
+            if not args.reliable_method:
+                print(f'seq nr: {sequence_number}, msg: {msg}')
         
             #RELIABLE METHODS
             #Send file contents to server
