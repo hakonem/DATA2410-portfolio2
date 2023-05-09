@@ -6,7 +6,7 @@ def stop_and_wait(packet, clientSocket, seq_num, ip, port):
     #Initialize variables
     ack_received = False
     packet_sent = False
-    timeout = 0.5  # 500ms timeout
+    clientSocket.settimeout(0.5)                     #Timeout = 500ms
 
     #Loop until ACK received
     while not ack_received:

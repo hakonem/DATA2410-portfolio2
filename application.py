@@ -128,15 +128,16 @@ def main():
         syn = create_packet(seq, ack_nr, flags, win, data)
         clientSocket.sendto(syn, (args.ip_address, args.port))
 
-        #Wait for SYN-ACK packet from server
-        #Throw error if SYN-ACK doesn't arrive before timeout
+        #Set timeout
+        clientSocket.settimeout(0.5)                     #Timeout = 500ms
         try:
-            clientSocket.settimeout(0.5)                     #Timeout = 500ms
+            #Wait for SYN-ACK packet from server
             buffer,address = clientSocket.recvfrom(1472)
             header_from_msg = buffer[:12]
             seq, ack_nr, flags, win = parse_header(header_from_msg)
             print(f'flags: {flags}')
-        except TimeoutError:
+        #Throw error if SYN-ACK doesn't arrive before timeout
+        except socket.timeout:
             print("Error: Timed out waiting for SYN-ACK")
             clientSocket.close()
             sys.exit()
