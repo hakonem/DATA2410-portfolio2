@@ -8,7 +8,7 @@ from stop_and_wait import stop_and_wait
 
 
 #Create argparse object with program description
-parser = argparse.ArgumentParser(description='Run simpleperf network performance tool')
+parser = argparse.ArgumentParser(description='Send data via selected reliable method in UDP mode')
 #Create optional arguments and assign flags. Help text describes each argument. Required input types are set, and default values set where necessary.
 parser.add_argument('-s', '--server', help='Runs tool in server mode', action='store_true')
 parser.add_argument('-c', '--client', help='Runs tool in client mode', action='store_true')
@@ -40,7 +40,7 @@ def main():
             sys.exit()
         print(f'Ready to receive...')                           #Print message when socket ready to receive
 
-
+        # Set up three-way handshake to establish connection:
         while True:
             #Wait for SYN packet from client
             buffer,address = serverSocket.recvfrom(1472)
@@ -68,42 +68,49 @@ def main():
             if flags == 4:
                 print("Connection established.")
 
+            # Open a file for writing binary data
+            with open('packets.bin', 'wb') as contents:
+                # Wait for data packets from client
+                while True:
+                    buffer,address = serverSocket.recvfrom(1472)
+                    header_from_msg = buffer[:12]
+                    seq, ack_nr, flags, win = parse_header(header_from_msg)
+                    # If packet contains data, read packet to contents file and send ACK
+                    if len(buffer) > 12:
+                        contents.write(buffer[12:])
+                        ack_nr = seq
+                        #the last 4 bits:  S A F R
+                        # 0 1 0 0  ACK flag set, and the decimal equivalent is 4
+                        flags = 4
+                        win = 64                                #Receiver window advertised by server for flow control, set to 64
+                        data = b''
+                        ack = create_packet(seq, ack_nr, flags, win, data)
+                        serverSocket.sendto(ack, address)
 
-            # Wait for data packets from client
-            while True:
-                buffer,address = serverSocket.recvfrom(1472)
-                header_from_msg = buffer[:12]
-                seq, ack_nr, flags, win = parse_header(header_from_msg)
-                # If packet contains data, send ACK
-                if len(buffer) > 12:
-                    print(f'seq nr: {seq}, {buffer}')
-
-                    ack_nr = seq
-                    #the last 4 bits:  S A F R
-                    # 0 1 0 0  ACK flag set, and the decimal equivalent is 4
-                    flags = 4
-                    win = 64                                #Receiver window advertised by server for flow control, set to 64
-                    data = b''
-                    ack = create_packet(seq, ack_nr, flags, win, data)
-                    serverSocket.sendto(ack, address)
-
-                # If FIN packet received, data transmission is complete - send ACK back to client
-                if flags == 2:
-                    print('End of transmission')
-                    seq = 0
-                    ack_nr = 0
-                    #the last 4 bits:  S A F R
-                    # 0 1 0 0  ACK flag set, and the decimal equivalent is 4
-                    flags = 4
-                    win = 0
-                    data = b''
-                    ack = create_packet(seq, ack_nr, flags, win, data)
-                    serverSocket.sendto(ack, address)
-                    # Close socket after all data has been sent and received
-                    print('Server connection closed')
-                    break
-            serverSocket.close()
-            sys.exit()
+                    # If FIN packet received, data transmission is complete - send ACK back to client
+                    if flags == 2:
+                        print('End of transmission')
+                        #Flush and close the file
+                        contents.flush()
+                        contents.close()
+                        # Reopen the contents file in read binary mode
+                        with open('packets.bin', 'rb') as contents:
+                            # Read contents and print to the screen
+                            print(contents.read())
+                        seq = 0
+                        ack_nr = 0
+                        #the last 4 bits:  S A F R
+                        # 0 1 0 0  ACK flag set, and the decimal equivalent is 4
+                        flags = 4
+                        win = 0
+                        data = b''
+                        ack = create_packet(seq, ack_nr, flags, win, data)
+                        serverSocket.sendto(ack, address)
+                        # Close socket after all data has been sent and received
+                        print('Server connection closed')
+                        break
+                serverSocket.close()
+                sys.exit()
 
 
     #Then run client
@@ -187,7 +194,7 @@ def main():
             #RELIABLE METHODS
             #Send file contents to server
             if args.reliable_method == 'stop_and_wait':
-                stop_and_wait(msg, clientSocket, sequence_number, (args.ip_address, args.port))
+                stop_and_wait(msg, clientSocket, sequence_number, args.ip_address, args.port)
                 print('Running with stop-and-wait as reliable method')
 
 
