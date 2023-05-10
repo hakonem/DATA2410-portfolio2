@@ -164,7 +164,7 @@ def main():
             header_from_msg = buffer[:12]
             seq, ack_nr, flags, win = parse_header(header_from_msg)
             print(f'flags: {flags}')
-        except TimeoutError:
+        except socket.timeout:
             print("Error: Timed out waiting for SYN-ACK")
             clientSocket.close()
             sys.exit()

@@ -1,3 +1,4 @@
+import socket
 from header import *
 import time
 
@@ -46,8 +47,7 @@ def GBN(packet, clientSocket, seq_num, ip, port, window, num_packets):
                                 window_seq.pop(0)
                             else:
                                 print(f'Received duplicate ACK for packet with sequence number {ack_seq_num}')
-                        except error as e:
-                            print(e)
+                        except socket.timeout:
                             # Resend packet if timeout occurs
                             print(f'Timeout occurred. Resending packets in window')
                             for i in packets:
@@ -78,8 +78,7 @@ def GBN(packet, clientSocket, seq_num, ip, port, window, num_packets):
                     print(f'Received duplicate ACK for packet with sequence number {ack_seq_num}')
                     raise Exception
 #TIMEOUT
-            except error as e:
-                print(e)
+            except socket.timeout:
                 # Resend packet if timeout occurs
                 print(f'Timeout occurred. Resending packets in window')
                 for i in packets:
