@@ -134,6 +134,8 @@ def main():
                             ack = create_packet(seq, ack_nr, flags, win, data)
                             serverSocket.sendto(ack, address)
                             print ("Ack", expectedseqnum)
+                            buffer_list.clear()
+                            ack_list.clear()
 
             serverSocket.close()
             sys.exit()

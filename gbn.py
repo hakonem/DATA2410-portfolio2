@@ -1,7 +1,7 @@
 from header import *
+import time
 
 init_ack = "ack".encode()
-timeout = 0.5  # 500ms timeout
 packets = []
 window_seq = []
 base = 1
@@ -13,6 +13,7 @@ def GBN(packet, clientSocket, seq_num, ip, port, window, num_packets):
     #initializes window variables (upper and lower window bounds, position of next seq number)
     global base
     global packets
+    clientSocket.settimeout(0.5)         #Timeout = 500ms
     
     if(window > num_packets):
         window = num_packets - 1
