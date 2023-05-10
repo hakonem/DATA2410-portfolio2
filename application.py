@@ -104,6 +104,8 @@ def main():
                     if("ack" in test):
                         print(ack_list[0])
                         seq, ack_nr, flags, win = parse_header(ack_list[0])
+                        
+                        #check value of expected seq number against seq number received - IN ORDER 
                         if(seq == expectedseqnum):
                             print ("Received in order", expectedseqnum)
                             # If packet contains data, send ACK
@@ -123,7 +125,7 @@ def main():
                         else:
                             # default? discard packet and resend ACK for most recently received inorder pkt 
                             print("Recieved out of order", seq)
-                            ack_nr = seq
+                            ack_nr = seq - 1
                             #the last 4 bits:  S A F R
                             # 0 1 0 0  ACK flag set, and the decimal equivalent is 4
                             flags = 4
