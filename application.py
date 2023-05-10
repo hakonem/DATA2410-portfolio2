@@ -137,6 +137,18 @@ def main():
                         buffer_list.clear()
                         ack_list.clear()
 
+                # Send ACK packet to Stop-and-Wait client
+                if args.reliable_method == 'stop_and_wait':
+                    ack_nr = final_seq
+                    seq += 1  # Update the sequence number
+                    # the last 4 bits:  S A F R
+                    # 0 1 0 0  ACK flag set, and the decimal equivalent is 4
+                    flags = 4
+                    win = 64  # Receiver window advertised by server for flow control, set to 64
+                    data = b''
+                    ack = create_packet(seq, ack_nr, flags, win, data)
+                    serverSocket.sendto(ack, address)
+
             serverSocket.close()
             sys.exit()
 
@@ -224,7 +236,6 @@ def main():
 
             else:
                 print(f'seq nr: {sequence_number}, msg: {msg}')
-
 
 
         # When data transmission is complete, send FIN packet to server
