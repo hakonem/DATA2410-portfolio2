@@ -4,7 +4,7 @@ import sys
 from socket import *
 from header import *
 from stop_and_wait import stop_and_wait
-from gbn import GBN
+from GBN import GBN
 from SR import SR
 
 
@@ -217,7 +217,10 @@ def main():
             seq, ack_nr, flags, win = parse_header(header_from_msg)
             print(f'flags: {flags}')
         except socket.timeout:
-            print("Error: Timed out waiting for SYN-ACK")
+            if args.test_case == "skip_ack":
+                print("Skipped SYN-ACK packet, retransmitting...")
+            else:
+                print("Error: Timed out waiting for SYN-ACK")
             clientSocket.close()
             sys.exit()
 
