@@ -1,11 +1,11 @@
 #Import libraries required for the program to work
 import argparse
 import sys
-import time
 from socket import *
 from header import *
 from stop_and_wait import stop_and_wait
-from gbn import GBN
+from GBN import GBN
+from SR import SR
 
 
 #Create argparse object with program description
@@ -29,7 +29,7 @@ def main():
     #ERROR HANDLING IF NEITHER/BOTH MODES SELECTED
     if (not args.client and not args.server) or (args.client and args.server):
         sys.exit('Error: you must run either in server or client mode')
-    
+
 
     #Run server first
     elif args.server:
@@ -68,7 +68,7 @@ def main():
             if flags == 4:
                 print("Connection established.")
 
-            #initializes packet variables 
+            #initializes packet variables
             expectedseqnum = 1
             #ACK=1
             ack_list = []
@@ -143,6 +143,19 @@ def main():
                             ack_list.clear()
                             buffer_list.clear()
 
+                    # Send ACK packet to Stop-and-Wait client
+                    if args.reliable_method == 'stop_and_wait':
+                        ack_nr = final_seq
+                        seq += 1  # Update the sequence number
+                        # the last 4 bits:  S A F R
+                        # 0 1 0 0  ACK flag set, and the decimal equivalent is 4
+                        flags = 4
+                        win = 64  # Receiver window advertised by server for flow control, set to 64
+                        data = b''
+                        ack = create_packet(seq, ack_nr, flags, win, data)
+                        serverSocket.sendto(ack, address)
+
+
             serverSocket.close()
             sys.exit()
 
@@ -170,33 +183,21 @@ def main():
             header_from_msg = buffer[:12]
             seq, ack_nr, flags, win = parse_header(header_from_msg)
             print(f'flags: {flags}')
-        except TimeoutError:
+        except socket.timeout:
             print("Error: Timed out waiting for SYN-ACK")
             clientSocket.close()
             sys.exit()
 
-        # Test case: skip ACK
-        if args.test_case == "skip_ack":
-            # Not sending ACK packet to the server
-            print('Skipping ACK')
-            pass
-            time.sleep(2)
-            # Retransmitting ACK packet
-            print('Retransmitting')
-            ack = create_packet(0, 0, 4, 0, b'')
-            clientSocket.sendto(ack, (args.ip_address, args.port))
-
-        else:
-            # Send ACK packet to server
-            seq = 0
-            ack_nr = 0
-            #the last 4 bits:  S A F R
-            # 0 1 0 0  ACK flag set, and the decimal equivalent is 4
-            flags = 4
-            win = 0
-            data = b''
-            ack = create_packet(seq, ack_nr, flags, win, data)
-            clientSocket.sendto(ack, (args.ip_address, args.port))
+        # Send ACK packet to server
+        seq = 0
+        ack_nr = 0
+        #the last 4 bits:  S A F R
+        # 0 1 0 0  ACK flag set, and the decimal equivalent is 4
+        flags = 4
+        win = 0
+        data = b''
+        ack = create_packet(seq, ack_nr, flags, win, data)
+        clientSocket.sendto(ack, (args.ip_address, args.port))
 
         #Open the file and read contents to a buffer
         with open(args.file, 'rb') as f:
@@ -218,25 +219,30 @@ def main():
             sequence_number = i+1
             print(sequence_number)
             acknowledgment_number = 0
-            window = 1 # window value should always be sent from the receiver-side
+            window = 5 # window value should always be sent from the receiver-side
             flags = 0 # we are not going to set any flags when we send a data packet
 
             #msg now holds a packet, including our custom header and data
             msg = create_packet(sequence_number, acknowledgment_number, flags, window, packet_data)
-            if not args.reliable_method:
-                print(f'seq nr: {sequence_number}, msg: {msg}')
 
             #RELIABLE METHODS
             #Send file contents to server
             if args.reliable_method == 'stop_and_wait':
                 stop_and_wait(msg, clientSocket, sequence_number, args.ip_address, args.port)
                 print('Running with stop-and-wait as reliable method')
-            
+
             #Send file contents to server
-            if args.reliable_method == 'GBN':
+            elif args.reliable_method == 'GBN':
                 GBN(msg, clientSocket, sequence_number, args.ip_address, args.port, window, num_packets)
+                print('Running with GBN as reliable method')
 
+            #Send file contents to server
+            elif args.reliable_method == 'SR':
+                SR(msg, clientSocket, sequence_number, args.ip_address, args.port, window, num_packets)
+                print('Running with SR as reliable method')
 
+            else:
+                print(f'seq nr: {sequence_number}, msg: {msg}')
 
 
         # When data transmission is complete, send FIN packet to server
