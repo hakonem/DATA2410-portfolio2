@@ -77,6 +77,7 @@ def main():
                 #If ACK packet received, connection is established
                 if flags == 4:
                     print("Connection established.")
+                    break
 
             #initializes packet variables
             expectedseqnum = 1
