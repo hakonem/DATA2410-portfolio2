@@ -4,7 +4,7 @@ import sys
 from socket import *
 from header import *
 from stop_and_wait import stop_and_wait
-from GBN import GBN
+from gbn import GBN
 from SR import SR
 
 
