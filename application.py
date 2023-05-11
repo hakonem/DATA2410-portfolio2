@@ -9,15 +9,15 @@ from SR import SR
 
 
 #Create argparse object with program description
-parser = argparse.ArgumentParser(description='Run simpleperf network performance tool')
+parser = argparse.ArgumentParser(description='Run a DRTP file transfer application')
 #Create optional arguments and assign flags. Help text describes each argument. Required input types are set, and default values set where necessary.
 parser.add_argument('-s', '--server', help='Runs tool in server mode', action='store_true')
 parser.add_argument('-c', '--client', help='Runs tool in client mode', action='store_true')
 parser.add_argument('-i', '--ip_address', help='Server IP address', type=str, default='127.0.0.1')
 parser.add_argument('-p', '--port', help='Server port number', type=int, default=8088)
 parser.add_argument('-f', '--file', help='Name of file to transfer', type=str)
-parser.add_argument('-r', '--reliable_method', help='Reliable method: stop_and_wait, GBN or SR. Server and client must use the same method', type=str)
-parser.add_argument('-t', '--test_case', help='Runs the specified test case', type=str)
+parser.add_argument('-r', '--reliable_method', help='Choose a reliable method.Server and client must use the same method', choices=['stop_and_wait', 'GBN', 'SR'], type=str)
+parser.add_argument('-t', '--test_case', help='Runs the specified test case', choices=['skip_ack', 'skip_seq_nr'], type=str)
 
 
 #Run the parser
