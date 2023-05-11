@@ -74,8 +74,7 @@ def GBN(packet, clientSocket, seq_num, ip, port, window, num_packets):
                     packets.pop(0)
                     window_seq.pop(0)
                 else:
-                    print(f'Received duplicate ACK for packet with sequence number {ack_seq_num}')
-                    raise Exception
+                    raise Exception(f'Received ACK out of order. Expected seq: {window_seq[0]}, but got seq: {ack_seq_num}')
 #TIMEOUT
             except error as e:
                 print(e)
@@ -84,4 +83,4 @@ def GBN(packet, clientSocket, seq_num, ip, port, window, num_packets):
                 for i in packets:
                     clientSocket.sendto(packets[i], (ip, port))
                     #print(packet)
-                    print(f'Sent packet with sequence number {window_seq[i]}')
+                    print(f'Resent packet with sequence number {window_seq[i]}')
