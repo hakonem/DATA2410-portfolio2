@@ -4,7 +4,7 @@ import sys
 from socket import *
 from header import *
 from stop_and_wait import stop_and_wait
-from gbn import GBN
+from GBN import GBN
 from SR import SR
 
 
@@ -42,6 +42,13 @@ def main():
             sys.exit()
         print(f'Ready to receive...')                           #Print message when socket ready to receive
 
+        #initializes packet variables
+        expectedseqnum = 1
+        #ACK=1
+        ack_list = []
+        buffer_list = []
+        prev_seq = 0
+
         while True:
             #Wait for SYN packet from client
             buffer,address = serverSocket.recvfrom(1472)
@@ -59,22 +66,25 @@ def main():
                 data = b''
                 synack = create_packet(seq, ack_nr, flags, win, data)
                 serverSocket.sendto(synack, address)
-            while True:
-                # Wait for ACK packet from client
-                buffer,address = serverSocket.recvfrom(1472)
-                header_from_msg = buffer[:12]
-                seq, ack_nr, flags, win = parse_header(header_from_msg)
-                #If ACK packet received, connection is established
-                if flags == 4:
-                    print("Connection established.")
-                    break
 
-            #initializes packet variables
-            expectedseqnum = 1
-            ack_list = []
-            buffer_list = []
-            prev_seq = 0
-            skip_ack = True
+            while True:
+            # Wait for ACK packet from client
+                try:
+                    serverSocket.settimeout(0.5)  # Timeout = 500ms
+                    buffer, address = serverSocket.recvfrom(1472)
+                    header_from_msg = buffer[:12]
+                    seq, ack_nr, flags, win = parse_header(header_from_msg)
+
+                    # If ACK packet received, connection is established
+                    if flags == 4:
+                        print("Connection established.")
+                        break
+
+                except socket.timeout:
+                    # Handle timeout when waiting for ACK packet
+                    print("Timeout: No ACK received. Retransmit SYN-ACK.")
+                    serverSocket.sendto(synack, address)
+
 
             # Open a file for writing binary data
             with open('packets.bin', 'wb') as contents:
@@ -82,29 +92,44 @@ def main():
                 while True:
                     buffer,address = serverSocket.recvfrom(1472)
                     test = buffer.decode()
+
                     if ("ack" not in test and buffer not in buffer_list):
                         buffer_list.append(buffer)
                         header_from_msg = buffer[:12]
-                        seq, ack_nr, flags, win = parse_header(header_from_msg)
+                        final_seq, final_ack_nr, final_flags, final_win = parse_header(header_from_msg)
                         ack_list.append(header_from_msg)
                         contents.write(buffer[12:])
+                        if args.reliable_method == 'SR':
+                            # Send cumulative ACK for the last in-order packet received
+                            ack_nr = seq
+                            seq += 1  # Update the sequence number
+                            # the last 4 bits:  S A F R
+                            # 0 1 0 0  ACK flag set, and the decimal equivalent is 4
+                            flags = 4
+                            win = 64  # Receiver window advertised by server for flow control, set to 64
+                            data = b''
+                            ack = create_packet(seq, ack_nr, flags, win, data)
+                            serverSocket.sendto(ack, address)
 
-                    
                     else:
-                        if args.reliable_method == 'GBN':
-                            #if "ack" in test:
-                            print(ack_list[0])
+                        # Check if there are any ACK packets received
+                        if len(ack_list) > 0:
                             seq, ack_nr, flags, win = parse_header(ack_list[0])
+                        else:
+                            print("No ACK packets received")
 
-                            #check value of expected seq number against seq number received - IN ORDER
-                            if(seq == expectedseqnum):
-                                print ("Received in order", expectedseqnum)
-                                # Revert increase in "expectedseqnum" if packet is resent
-                                if (prev_seq == seq):
-                                    expectedseqnum = expectedseqnum - 1
+
+                        #check value of expected seq number against seq number received - IN ORDER
+                        if(seq == expectedseqnum):
+                            print ("Received in order", expectedseqnum)
+                            # Revert increase in "expectedseqnum" if packet is resent
+                            if (prev_seq == seq):
+                                expectedseqnum = expectedseqnum - 1
+                            if args.reliable_method == 'GBN':
                                 # If packet contains data, send ACK
                                 if len(buffer_list[0]) > 12:
                                     expectedseqnum = expectedseqnum + 1
+                                    lastackseqnum = expectedseqnum - 1
                                     ack_nr = seq
                                     #the last 4 bits:  S A F R
                                     # 0 1 0 0  ACK flag set, and the decimal equivalent is 4
@@ -116,52 +141,71 @@ def main():
                                     ack_list.pop(0)
                                     buffer_list.pop(0)
                                     prev_seq = seq
-                            else:
-                                # default? discard packet and resend ACK for most recently received inorder pkt
-                                print("Received out of order", seq)
-                                ack_nr = seq
-                                #the last 4 bits:  S A F R
-                                # 0 1 0 0  ACK flag set, and the decimal equivalent is 4
-                                flags = 4
-                                win = 64                                #Receiver window advertised by server for flow control, set to 64
-                                data = b''
-                                ack = create_packet(seq, ack_nr, flags, win, data)
-                                serverSocket.sendto(ack, address)
-                                print ("Ack", expectedseqnum)
-                                buffer_list.clear()
-                                ack_list.clear()
+                                else:
+                                    # default? discard packet and resend ACK for most recently received inorder pkt
+                                    print("Received out of order", seq)
+                                    ack_nr = expectedseqnum - 1
+                                    #the last 4 bits:  S A F R
+                                    # 0 1 0 0  ACK flag set, and the decimal equivalent is 4
+                                    flags = 4
+                                    win = 64                                #Receiver window advertised by server for flow control, set to 64
+                                    data = b''
+                                    ack = create_packet(seq, ack_nr, flags, win, data)
+                                    serverSocket.sendto(ack, address)
+                                    prev_seq = expectedseqnum - 1
+                                    print ("Ack", expectedseqnum)
+                                    buffer_list.clear()
+                                    ack_list.clear()
+
+                            elif args.reliable_method == 'SR':
+                                # If packet contains data, send ACK
+                                if len(buffer_list[0]) > 12:
+                                    lastackseqnum = expectedseqnum - 1
+                                    ack_nr = seq
+                                    #the last 4 bits:  S A F R
+                                    # 0 1 0 0  ACK flag set, and the decimal equivalent is 4
+                                    flags = 4
+                                    win = 64                                #Receiver window advertised by server for flow control, set to 64
+                                    data = b''
+                                    ack = create_packet(seq, ack_nr, flags, win, data)
+                                    serverSocket.sendto(ack, address)
+                                    # Check if the received packet is a duplicate
+                                    if seq <= lastackseqnum:
+                                        # Duplicate packet, discard it
+                                        print("Received duplicate packet, discarding:", seq)
+                                        continue
+
+                                    # Packet indicates loss, place it in the correct position in the buffer
+                                    print("Received out of order, placing in buffer:", seq)
+                                    buffer_list.append((seq, ack))  # Append the packet to the buffer list
+
+                                    print("Received out of order", seq)
+                                    ack_nr = lastackseqnum
+                                    #the last 4 bits:  S A F R
+                                    # 0 1 0 0  ACK flag set, and the decimal equivalent is 4
+                                    flags = 4
+                                    win = 64                                #Receiver window advertised by server for flow control, set to 64
+                                    data = b''
+                                    ack = create_packet(seq, ack_nr, flags, win, data)
+                                    serverSocket.sendto(ack, address)
+                                    print('Packet put in correct order in received buffer')
 
 
-                        # Send ACK packet to Stop-and-Wait client
-                        if args.reliable_method == 'stop_and_wait':
-                            ack_nr = seq
-                            # the last 4 bits:  S A F R
-                            # 0 1 0 0  ACK flag set, and the decimal equivalent is 4
-                            flags = 4
-                            win = 64  # Receiver window advertised by server for flow control, set to 64
-                            data = b''
-                            ack = create_packet(seq, ack_nr, flags, win, data)
-                            if args.test_case == 'skip_ack' and skip_ack:
-                                print('Skipping ack...')
-                                skip_ack = False
-                            else:
-                                serverSocket.sendto(ack, address)
+                    # Send ACK packet to Stop-and-Wait client
+                    if args.reliable_method == 'stop_and_wait':
+                        ack_nr = final_seq
+                        seq += 1  # Update the sequence number
+                        # the last 4 bits:  S A F R
+                        # 0 1 0 0  ACK flag set, and the decimal equivalent is 4
+                        flags = 4
+                        win = 64  # Receiver window advertised by server for flow control, set to 64
+                        data = b''
+                        ack = create_packet(seq, ack_nr, flags, win, data)
+                        serverSocket.sendto(ack, address)
 
-                        # Send ACK packet to SR client
-                        if args.reliable_method == 'SR':
-                            ack_nr = seq
-                            seq += 1  # Update the sequence number
-                            # the last 4 bits:  S A F R
-                            # 0 1 0 0  ACK flag set, and the decimal equivalent is 4
-                            flags = 4
-                            win = 64  # Receiver window advertised by server for flow control, set to 64
-                            data = b''
-                            ack = create_packet(seq, ack_nr, flags, win, data)
-                            serverSocket.sendto(ack, address)
 
-                
                     # If FIN packet received, data transmission is complete - send ACK back to client
-                    if flags == 2:
+                    if final_flags == 2:
                         print('End of transmission')
                         #Flush and close the file
                         contents.flush()
@@ -182,6 +226,7 @@ def main():
                         # Close socket after all data has been sent and received
                         print('Server connection closed')
                         break
+
 
             serverSocket.close()
             sys.exit()
@@ -210,17 +255,15 @@ def main():
             header_from_msg = buffer[:12]
             seq, ack_nr, flags, win = parse_header(header_from_msg)
             print(f'flags: {flags}')
+
         except socket.timeout:
-            if args.test_case == "skip_ack":
-                print("Skipped SYN-ACK packet, retransmitting...")
-            else:
-                print("Error: Timed out waiting for SYN-ACK")
+            print("Error: Timed out waiting for SYN-ACK")
             clientSocket.close()
             sys.exit()
 
         # Send ACK packet to server
         seq = 0
-        ack_nr = 0
+        ack_nr = seq+1
         #the last 4 bits:  S A F R
         # 0 1 0 0  ACK flag set, and the decimal equivalent is 4
         flags = 4
@@ -249,7 +292,7 @@ def main():
             sequence_number = i+1
             print(sequence_number)
             acknowledgment_number = 0
-            window = 5 # fixed window value
+            window = 3 # fixed window value
             flags = 0 # we are not going to set any flags when we send a data packet
 
             #msg now holds a packet, including our custom header and data
@@ -267,11 +310,12 @@ def main():
                 print('Running with GBN as reliable method')
 
             #Send file contents to server
-            else: 
-                #if args.reliable_method == 'SR':
+            elif args.reliable_method == 'SR':
                 SR(msg, clientSocket, sequence_number, args.ip_address, args.port, window, num_packets)
                 print('Running with SR as reliable method')
 
+            else:
+                print(f'seq nr: {sequence_number}, msg: {msg}')
 
 
         # When data transmission is complete, send FIN packet to server
