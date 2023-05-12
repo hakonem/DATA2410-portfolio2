@@ -17,8 +17,11 @@ parser.add_argument('-i', '--ip_address', help='Server IP address', type=str, de
 parser.add_argument('-p', '--port', help='Server port number', type=int, default=8088)
 parser.add_argument('-f', '--file', help='Name of file to transfer', type=str)
 parser.add_argument('-r', '--reliable_method', help='Choose a reliable method.Server and client must use the same method', choices=['stop_and_wait', 'GBN', 'SR'], type=str)
-parser.add_argument('-t', '--test_case', help='Runs the specified test case', choices=['skip_ack', 'skip_seq_nr'], type=str)
+parser.add_argument('-t', '--test_case', help='Runs the specified test case', choices=['skip_ack', 'skip_seq'], type=str)
 
+
+#Global variabel i 
+i = 0
 
 #Run the parser
 args = parser.parse_args()
@@ -26,6 +29,9 @@ args = parser.parse_args()
 
 #MAIN FUNCTION
 def main():
+    #Get global varaible i
+    global i
+
     #ERROR HANDLING IF NEITHER/BOTH MODES SELECTED
     if (not args.client and not args.server) or (args.client and args.server):
         sys.exit('Error: you must run either in server or client mode')
@@ -82,26 +88,34 @@ def main():
                 while True:
                     buffer,address = serverSocket.recvfrom(1472)
                     test = buffer.decode()
-                    if ("ack" not in test and buffer not in buffer_list):
+
+                    # Removes the old elements in the case of a resend cause by timeout
+                    if(buffer in buffer_list):
+                        for x in buffer_list[:-1]:
+                            buffer_list.pop(x)
+                            ack_list.pop(x)
+
+                    if ("ack" not in test):
                         buffer_list.append(buffer)
                         header_from_msg = buffer[:12]
                         seq, ack_nr, flags, win = parse_header(header_from_msg)
                         ack_list.append(header_from_msg)
                         contents.write(buffer[12:])
-
                     
                     else:
                         if args.reliable_method == 'GBN':
                             #if "ack" in test:
-                            print(ack_list[0])
                             seq, ack_nr, flags, win = parse_header(ack_list[0])
+
+                            # Revert increase in "expectedseqnum" if packet is resent
+                            if (prev_seq == seq):
+                                expectedseqnum = expectedseqnum - 1
+                                    
 
                             #check value of expected seq number against seq number received - IN ORDER
                             if(seq == expectedseqnum):
                                 print ("Received in order", expectedseqnum)
-                                # Revert increase in "expectedseqnum" if packet is resent
-                                if (prev_seq == seq):
-                                    expectedseqnum = expectedseqnum - 1
+        
                                 # If packet contains data, send ACK
                                 if len(buffer_list[0]) > 12:
                                     expectedseqnum = expectedseqnum + 1
@@ -119,7 +133,7 @@ def main():
                             else:
                                 # default? discard packet and resend ACK for most recently received inorder pkt
                                 print("Received out of order", seq)
-                                ack_nr = seq
+                                ack_nr = seq - 1
                                 #the last 4 bits:  S A F R
                                 # 0 1 0 0  ACK flag set, and the decimal equivalent is 4
                                 flags = 4
@@ -127,7 +141,6 @@ def main():
                                 data = b''
                                 ack = create_packet(seq, ack_nr, flags, win, data)
                                 serverSocket.sendto(ack, address)
-                                print ("Ack", expectedseqnum)
                                 buffer_list.clear()
                                 ack_list.clear()
 
@@ -236,9 +249,16 @@ def main():
         packet_size = 1460                                              #Set packet size (without header)
         num_packets = (len(data) + packet_size - 1) // packet_size      #Calculate number of packets
         print(f'number of packets={num_packets}')
+        skip = False
 
         #Loop through packets
-        for i in range(num_packets):
+        while True:
+
+            if(args.test_case == 'skip_seq' and i == 12 and skip == False):
+                print("Kom meg inn i if settningen")
+                i = i + 1
+                skip = True
+
             #Calculate start and end points of the data in this packet
             start = i * (packet_size)
             end = min(start + 1460, len(data))
@@ -247,10 +267,10 @@ def main():
             packet_data = data[start:end]
             #Pack the sequence number into the header
             sequence_number = i+1
-            print(sequence_number)
             acknowledgment_number = 0
             window = 5 # fixed window value
             flags = 0 # we are not going to set any flags when we send a data packet
+            i = i + 1
 
             #msg now holds a packet, including our custom header and data
             msg = create_packet(sequence_number, acknowledgment_number, flags, window, packet_data)
@@ -263,7 +283,7 @@ def main():
 
             #Send file contents to server
             elif args.reliable_method == 'GBN':
-                GBN(msg, clientSocket, sequence_number, args.ip_address, args.port, window, num_packets)
+                resend, end, prev_ack = GBN(msg, clientSocket, sequence_number, args.ip_address, args.port, window, num_packets)
                 print('Running with GBN as reliable method')
 
             #Send file contents to server
@@ -271,6 +291,14 @@ def main():
                 #if args.reliable_method == 'SR':
                 SR(msg, clientSocket, sequence_number, args.ip_address, args.port, window, num_packets)
                 print('Running with SR as reliable method')
+
+            if resend and prev_ack > num_packets - window:
+                i = i - ((num_packets - prev_ack) + 2)
+            elif resend:
+                i = i - (window + 2)
+            
+            if end:
+                break
 
 
 

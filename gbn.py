@@ -4,35 +4,54 @@ from header import *
 init_ack = "ack".encode()
 packets = []
 window_seq = []
-base = 1
+break_out_flag = False
+resend = False
+end = False
+prev_ack = 0
 
 
 #!!!!! if window is greater than num_packets set window = num_packets
 
 def GBN(packet, clientSocket, seq_num, ip, port, window, num_packets):
     #initializes window variables (upper and lower window bounds, position of next seq number)
-    global base
     global packets
+    global break_out_flag
+    global resend
+    global end
+    global prev_ack
+
     clientSocket.settimeout(0.5)         #Timeout = 500ms
+    resend = False
 
     if(window > num_packets):
         window = num_packets - 1
 
     while True:
-        #print("Vi kom hit")
-        #print(seq_num)
-        #print(window + base)
+
+        if break_out_flag: 
+            break_out_flag = False
+            resend = True
+            break
+
         #	check if the window is full
-        if(seq_num<window + base):
+        if(len(packets) < window):
             clientSocket.sendto(packet, (ip, port))
             #print(packet)
             print(f'Sent packet with sequence number {seq_num}')
             #		append packet to packets
             packets.append(packet)
             window_seq.append(seq_num)
-            if((window + base) ==  num_packets + 1):
 
-                while(ack_seq_num <= num_packets):
+            #print(window_seq)
+            #print("TESTER BRAGO")
+
+            #If all packeges has been sent then wait for the last ack packets
+            if(seq_num) >=  num_packets:
+
+                while(seq_num <= num_packets + 1):
+
+                    if break_out_flag: break
+
                     try:
                         clientSocket.sendto(init_ack, (ip, port))
                         #Receive ACK packet from server
@@ -44,8 +63,16 @@ def GBN(packet, clientSocket, seq_num, ip, port, window, num_packets):
                             print(f'Received ACK for packet with sequence number {ack_seq_num}')
                             packets.pop(0)
                             window_seq.pop(0)
+                            prev_ack = ack_ack_num
+
+                            if ack_seq_num == num_packets:
+                                end = True
                         else:
-                            print(f'Received duplicate ACK for packet with sequence number {ack_seq_num}')
+                            print(f'Received ACK out of order with packet {ack_seq_num}. Resending packeges')
+                            packets.clear()
+                            window_seq.clear()
+                            break_out_flag = True
+
                     except socket.timeout:
                         # Resend packet if timeout occurs
                         print(f'Timeout occurred. Resending packets in window')
@@ -69,18 +96,22 @@ def GBN(packet, clientSocket, seq_num, ip, port, window, num_packets):
             # Check if received packet is an ACK for the packet just sent
             if ack_ack_num == window_seq[0]:
                 print(f'Received ACK for packet with sequence number {ack_seq_num}')
-                #Sliding window
-                base = base + 1
                 packets.pop(0)
                 window_seq.pop(0)
             else:
-                raise Exception(f'Received ACK out of order. Expected seq: {window_seq[0]}, but got seq: {ack_seq_num}')
+                print(f'Received ACK out of order with packet {ack_seq_num}. Resending packeges')
+                packets.clear()
+                window_seq.clear()
+                break_out_flag = True
             
         #TIMEOUT
         except socket.timeout:
+            
             # Resend packet if timeout occurs
             print(f'Timeout occurred. Resending packets in window')
             for i in packets:
                 clientSocket.sendto(packets[i], (ip, port))
                 #print(packet)
                 print(f'Resent packet with sequence number {window_seq[i]}')
+    
+    return resend, end, prev_ack
