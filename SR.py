@@ -28,7 +28,7 @@ def SR(packet, clientSocket, seq_num, ip, port, window, num_packets):
 
     while True:
 
-        if break_out_flag: 
+        if break_out_flag:
             break_out_flag = False
             break
 
@@ -75,10 +75,16 @@ def SR(packet, clientSocket, seq_num, ip, port, window, num_packets):
 
                     except socket.timeout:
                         # Resend packet if timeout occurs
-                        print(f'Timeout occurred. Resending packets in window')
-                        clientSocket.sendto(packets[0], (ip, port))
-                        #print(packet)
-                        print(f'Sent packet with sequence number {window_seq[0]}')
+                        print(f'Timeout occurred. Resending lost packet in window')
+
+                        # Resend only the lost packet instead of the entire window
+                        for i in range(len(packets)):
+                            if window_seq[i] != prev_ack + 1:
+                                clientSocket.sendto(packets[i], (ip, port))
+                                print(f'Resent packet with sequence number {window_seq[i]}')
+                                break
+
+                        break_out_flag = True
 
                     if(ack_seq_num == num_packets):
                         break
@@ -103,14 +109,23 @@ def SR(packet, clientSocket, seq_num, ip, port, window, num_packets):
                 #print(packet)
                 print(f'Sent packet with sequence number {window_seq[0]}')
                 break_out_flag = True
-            
+
         #TIMEOUT
         except socket.timeout:
-            
+
             # Resend packet if timeout occurs
-            print(f'Timeout occurred. Resending packets in window')
+            print(f'Timeout occurred. Resending lost packet in window')
             clientSocket.sendto(packets[0], (ip, port))
             #print(packet)
             print(f'Resent packet with sequence number {window_seq[0]}')
-    
+
+            # Resend only the lost packet instead of teh entire window
+            for i in range(len(packets)):
+                if window_seq[i] != prev_ack + 1:
+                    clientSocket.sendto(packets[i], (ip, port))
+                    print(f'Resent packet with sequence number {window_seq[i]}')
+                    break
+
+            break
+
     return resend, end, prev_ack
