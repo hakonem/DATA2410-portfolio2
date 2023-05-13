@@ -107,9 +107,9 @@ def main():
 
                     # Removes the old elements in the case of a resend cause by timeout
                     if(buffer in buffer_list):
-                        for x in range(len(buffer_list[:-1])):
-                            buffer_list.pop(x)
-                            ack_list.pop(x)
+                        for x in range(len(buffer_list)):
+                            buffer_list.pop()
+                            ack_list.pop()
 
                     if ("ack" not in test):
                         buffer_list.append(buffer)
@@ -142,13 +142,17 @@ def main():
                                     win = 64                                #Receiver window advertised by server for flow control, set to 64
                                     data = b''
                                     ack = create_packet(seq, ack_nr, flags, win, data)
-                                    serverSocket.sendto(ack, address)
-                                    ack_list.pop(0)
-                                    buffer_list.pop(0)
-                                    prev_seq = seq
+                                    if args.test_case == 'skip_ack' and skip_ack:
+                                        print('Skipping ack...')
+                                        skip_ack = False
+                                    else:
+                                        serverSocket.sendto(ack, address)
+                                        ack_list.pop(0)
+                                        buffer_list.pop(0)
+                                        prev_seq = seq
                             else:
                                 # default? discard packet and resend ACK for most recently received inorder pkt
-                                print("Received out of order", seq)
+                                print("Received out of order packet", seq)
                                 ack_nr = seq - 1
                                 #the last 4 bits:  S A F R
                                 # 0 1 0 0  ACK flag set, and the decimal equivalent is 4
@@ -156,12 +160,13 @@ def main():
                                 win = 64                                #Receiver window advertised by server for flow control, set to 64
                                 data = b''
                                 ack = create_packet(seq, ack_nr, flags, win, data)
-                                serverSocket.sendto(ack, address)
-                                buffer_list.clear()
-                                ack_list.clear()
-
-
-                        
+                                if args.test_case == 'skip_ack' and skip_ack:
+                                    print('Skipping ack...')
+                                    skip_ack = False
+                                else:
+                                    serverSocket.sendto(ack, address)
+                                    buffer_list.clear()
+                                    ack_list.clear()
 
                         # Send ACK packet to SR client
                         if args.reliable_method == 'SR':
