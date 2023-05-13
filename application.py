@@ -20,9 +20,6 @@ parser.add_argument('-r', '--reliable_method', help='Choose a reliable method.Se
 parser.add_argument('-t', '--test_case', help='Runs the specified test case', choices=['skip_ack', 'skip_seq'], type=str)
 
 
-#Global variabel i 
-i = 0
-
 #Run the parser
 args = parser.parse_args()
 
@@ -91,7 +88,7 @@ def main():
 
                     # Removes the old elements in the case of a resend cause by timeout
                     if(buffer in buffer_list):
-                        for x in buffer_list[:-1]:
+                        for x in range(len(buffer_list[:-1])):
                             buffer_list.pop(x)
                             ack_list.pop(x)
 
@@ -147,6 +144,9 @@ def main():
 
                         # Send ACK packet to Stop-and-Wait client
                         if args.reliable_method == 'stop_and_wait':
+                            #if "ack" in test:
+                            seq, ack_nr, flags, win = parse_header(ack_list[0])
+                            
                             ack_nr = seq
                             # the last 4 bits:  S A F R
                             # 0 1 0 0  ACK flag set, and the decimal equivalent is 4
@@ -250,11 +250,12 @@ def main():
         num_packets = (len(data) + packet_size - 1) // packet_size      #Calculate number of packets
         print(f'number of packets={num_packets}')
         skip = False
+        i = 0
 
         #Loop through packets
-        while True:
+        while i < num_packets:
 
-            if(args.test_case == 'skip_seq' and i == 12 and skip == False):
+            if(args.test_case == 'skip_seq' and i == 3 and skip == False):
                 print("Kom meg inn i if settningen")
                 i = i + 1
                 skip = True
@@ -281,24 +282,27 @@ def main():
                 stop_and_wait(msg, clientSocket, sequence_number, args.ip_address, args.port)
                 print('Running with stop-and-wait as reliable method')
 
+                if i == num_packets:
+                    break
+
             #Send file contents to server
             elif args.reliable_method == 'GBN':
                 resend, end, prev_ack = GBN(msg, clientSocket, sequence_number, args.ip_address, args.port, window, num_packets)
                 print('Running with GBN as reliable method')
+
+                if resend and prev_ack > num_packets - window:
+                    i = i - ((num_packets - prev_ack) + 2)
+                elif resend:
+                    i = i - (window + 2)
+            
+                if end:
+                    break
 
             #Send file contents to server
             else: 
                 #if args.reliable_method == 'SR':
                 SR(msg, clientSocket, sequence_number, args.ip_address, args.port, window, num_packets)
                 print('Running with SR as reliable method')
-
-            if resend and prev_ack > num_packets - window:
-                i = i - ((num_packets - prev_ack) + 2)
-            elif resend:
-                i = i - (window + 2)
-            
-            if end:
-                break
 
 
 
