@@ -98,11 +98,13 @@ def main():
                         flags = 4
                         win = 64  # Receiver window advertised by server for flow control, set to 64
                         data = b''
-                        ack = create_packet(seq, ack_nr, flags, win, data)
+                        
+                        #TEST CASE: SKIP ACK
                         if args.test_case == 'skip_ack' and skip_ack:
                             print('Skipping ack...')
                             skip_ack = False
                         else:
+                            ack = create_packet(seq, ack_nr, flags, win, data)
                             serverSocket.sendto(ack, address)
 
                     # Removes the old elements in the case of a resend cause by timeout
@@ -126,10 +128,14 @@ def main():
                             # Revert increase in "expectedseqnum" if packet is resent
                             if (prev_seq == seq):
                                 expectedseqnum = expectedseqnum - 1
-                                    
+
+                            #TEST CASE: SKIP ACK
+                            if args.test_case == 'skip_ack' and skip_ack:
+                                    print('Skipping ack...')
+                                    skip_ack = False   
 
                             #check value of expected seq number against seq number received - IN ORDER
-                            if(seq == expectedseqnum):
+                            elif(seq == expectedseqnum):
                                 print ("Received in order", expectedseqnum)
         
                                 # If packet contains data, send ACK
@@ -142,14 +148,11 @@ def main():
                                     win = 64                                #Receiver window advertised by server for flow control, set to 64
                                     data = b''
                                     ack = create_packet(seq, ack_nr, flags, win, data)
-                                    if args.test_case == 'skip_ack' and skip_ack:
-                                        print('Skipping ack...')
-                                        skip_ack = False
-                                    else:
-                                        serverSocket.sendto(ack, address)
-                                        ack_list.pop(0)
-                                        buffer_list.pop(0)
-                                        prev_seq = seq
+                                    serverSocket.sendto(ack, address)
+                                    prev_seq = seq
+                                    ack_list.pop(0)
+                                    buffer_list.pop(0)
+                                    
                             else:
                                 # default? discard packet and resend ACK for most recently received inorder pkt
                                 print("Received out of order packet", seq)
@@ -160,13 +163,9 @@ def main():
                                 win = 64                                #Receiver window advertised by server for flow control, set to 64
                                 data = b''
                                 ack = create_packet(seq, ack_nr, flags, win, data)
-                                if args.test_case == 'skip_ack' and skip_ack:
-                                    print('Skipping ack...')
-                                    skip_ack = False
-                                else:
-                                    serverSocket.sendto(ack, address)
-                                    buffer_list.clear()
-                                    ack_list.clear()
+                                serverSocket.sendto(ack, address)
+                                buffer_list.clear()
+                                ack_list.clear()
 
                         # Send ACK packet to SR client
                         if args.reliable_method == 'SR':

@@ -79,7 +79,7 @@ def GBN(packet, clientSocket, seq_num, ip, port, window, num_packets):
                         for i in packets:
                             clientSocket.sendto(i, (ip, port))
                             #print(f'Sent packet with sequence number {window_seq[i]}')
-
+                    
                     if(ack_seq_num == num_packets):
                         break
                 break
