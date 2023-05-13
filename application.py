@@ -86,6 +86,25 @@ def main():
                     buffer,address = serverSocket.recvfrom(1472)
                     test = buffer.decode()
 
+                    # Send ACK packet to Stop-and-Wait client
+                    if args.reliable_method == 'stop_and_wait':
+                        header_from_msg = buffer[:12]
+                        seq, ack_nr, flags, win = parse_header(header_from_msg)
+                        contents.write(buffer[12:])
+                        
+                        ack_nr = seq
+                        # the last 4 bits:  S A F R
+                        # 0 1 0 0  ACK flag set, and the decimal equivalent is 4
+                        flags = 4
+                        win = 64  # Receiver window advertised by server for flow control, set to 64
+                        data = b''
+                        ack = create_packet(seq, ack_nr, flags, win, data)
+                        if args.test_case == 'skip_ack' and skip_ack:
+                            print('Skipping ack...')
+                            skip_ack = False
+                        else:
+                            serverSocket.sendto(ack, address)
+
                     # Removes the old elements in the case of a resend cause by timeout
                     if(buffer in buffer_list):
                         for x in range(len(buffer_list[:-1])):
@@ -142,23 +161,7 @@ def main():
                                 ack_list.clear()
 
 
-                        # Send ACK packet to Stop-and-Wait client
-                        if args.reliable_method == 'stop_and_wait':
-                            #if "ack" in test:
-                            seq, ack_nr, flags, win = parse_header(ack_list[0])
-                            
-                            ack_nr = seq
-                            # the last 4 bits:  S A F R
-                            # 0 1 0 0  ACK flag set, and the decimal equivalent is 4
-                            flags = 4
-                            win = 64  # Receiver window advertised by server for flow control, set to 64
-                            data = b''
-                            ack = create_packet(seq, ack_nr, flags, win, data)
-                            if args.test_case == 'skip_ack' and skip_ack:
-                                print('Skipping ack...')
-                                skip_ack = False
-                            else:
-                                serverSocket.sendto(ack, address)
+                        
 
                         # Send ACK packet to SR client
                         if args.reliable_method == 'SR':
