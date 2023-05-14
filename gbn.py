@@ -76,9 +76,9 @@ def GBN(packet, clientSocket, seq_num, ip, port, window, num_packets):
                     except socket.timeout:
                         # Resend packet if timeout occurs
                         print(f'Timeout occurred. Resending packets in window')
-                        for i in packets:
-                            clientSocket.sendto(i, (ip, port))
-                            #print(f'Sent packet with sequence number {window_seq[i]}')
+                        for i in range(len(packets)):
+                            clientSocket.sendto(packets[i], (ip, port))
+                            print(f'Sent packet with sequence number {window_seq[i]}')
                     
                     if(ack_seq_num == num_packets):
                         break
@@ -107,8 +107,8 @@ def GBN(packet, clientSocket, seq_num, ip, port, window, num_packets):
         except socket.timeout:
             # Resend packet if timeout occurs
             print(f'Timeout occurred. Resending packets in window')
-            for i in packets:
-                clientSocket.sendto(i, (ip, port))
-                #print(f'Resent packet with sequence number {window_seq[i]}')
+            for i in range(len(packets)):
+                clientSocket.sendto(packets[i], (ip, port))
+                print(f'Resent packet with sequence number {window_seq[i]}')
     
     return resend, end, prev_ack
