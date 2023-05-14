@@ -109,9 +109,9 @@ def main():
                     if args.reliable_method == 'GBN':        
                         # Removes the old elements in the case of a resend cause by timeout
                         if(buffer in buffer_list):
-                            for x in range(len(buffer_list[:-1])):
-                                buffer_list.pop(x)
-                                ack_list.pop(x)
+                            for x in range(len(buffer_list)):
+                                buffer_list.pop()
+                                ack_list.pop()
                     elif args.reliable_method == 'SR':
                         # Places the resent packet buffer first in list
                         if(buffer == prev_buffer):
@@ -133,9 +133,13 @@ def main():
                             # Revert increase in "expectedseqnum" if packet is resent
                             if (prev_seq == seq):
                                 expectedseqnum = expectedseqnum - 1
+
+                            if args.test_case == 'skip_ack' and skip_ack:
+                                print('Skipping ack...')
+                                skip_ack = False
                                     
                             #check value of expected seq number against seq number received - IN ORDER
-                            if(seq == expectedseqnum):
+                            elif(seq == expectedseqnum):
                                 print ("Received in order", expectedseqnum)
 
                                 # If packet contains data, send ACK
@@ -179,9 +183,13 @@ def main():
                             # Revert increase in "expectedseqnum" if packet is resent
                             if (prev_seq == seq):
                                 expectedseqnum = expectedseqnum - 1
+
+                            if args.test_case == 'skip_ack' and skip_ack:
+                                print('Skipping ack...')
+                                skip_ack = False
                                     
                             #check value of expected seq number against seq number received - IN ORDER
-                            if(seq == expectedseqnum):
+                            elif(seq == expectedseqnum):
                                 print ("Received in order", expectedseqnum)
 
                                 # If packet contains data, send ACK
@@ -264,12 +272,8 @@ def main():
             buffer,address = clientSocket.recvfrom(1472)
             header_from_msg = buffer[:12]
             seq, ack_nr, flags, win = parse_header(header_from_msg)
-            print(f'flags: {flags}')
         except socket.timeout:
-            if args.test_case == "skip_ack":
-                print("Skipped SYN-ACK packet, retransmitting...")
-            else:
-                print("Error: Timed out waiting for SYN-ACK")
+            print("Error: Timed out waiting for SYN-ACK")
             clientSocket.close()
             sys.exit()
 
@@ -312,7 +316,7 @@ def main():
             #Pack the sequence number into the header
             sequence_number = i+1
             acknowledgment_number = 0
-            window = 3 # fixed window value
+            window = 5 # fixed window value
             flags = 0 # we are not going to set any flags when we send a data packet
             i = i + 1
 
