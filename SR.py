@@ -116,8 +116,6 @@ def SR(packet, clientSocket, seq_num, ip, port, window, num_packets):
             # Resend packet if timeout occurs
             print(f'Timeout occurred. Resending lost packet in window')
             clientSocket.sendto(packets[0], (ip, port))
-            #print(packet)
-            print(f'Resent packet with sequence number {window_seq[0]}')
 
             # Resend only the lost packet instead of teh entire window
             for i in range(len(packets)):
