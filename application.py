@@ -342,11 +342,18 @@ def main():
                     break
 
             #Send file contents to server
-            else: 
-                #if args.reliable_method == 'SR':
-                SR(msg, clientSocket, sequence_number, args.ip_address, args.port, window, num_packets)
+            elif args.reliable_method == 'SR':
+                resend, end, prev_ack = SR(msg, clientSocket, sequence_number, args.ip_address, args.port, window, num_packets)
                 print('Running with SR as reliable method')
 
+                if resend and prev_ack > num_packets - window:
+                    i = i - ((num_packets - prev_ack) + 2)
+                elif resend:
+                    i = i - (window + 2)
+
+                if end:
+                    print('File transfer completed successfully')
+                    break
 
 
         # When data transmission is complete, send FIN packet to server
