@@ -112,12 +112,7 @@ def main():
                             for x in range(len(buffer_list)):
                                 buffer_list.pop()
                                 ack_list.pop()
-                    elif args.reliable_method == 'SR':
-                        # Places the resent packet buffer first in list
-                        if(buffer == prev_buffer):
-                                buffer_list.insert(0, buffer)
-                                ack_list.insert(0, buffer)
-
+                          
                     if ("ack" not in test):
                         buffer_list.append(buffer)
                         header_from_msg = buffer[:12]
@@ -179,10 +174,13 @@ def main():
                         if args.reliable_method == 'SR':
                             #if "ack" in test:
                             seq, ack_nr, flags, win = parse_header(ack_list[0])
+                            last_seq, last_ack_nr, last_flags, last_win = parse_header(ack_list[-1])
 
                             # Revert increase in "expectedseqnum" if packet is resent
                             if (prev_seq == seq):
                                 expectedseqnum = expectedseqnum - 1
+
+
 
                             if args.test_case == 'skip_ack' and skip_ack:
                                 print('Skipping ack...')
@@ -207,6 +205,27 @@ def main():
                                     prev_buffer = buffer_list[0]
                                     ack_list.pop(0)
                                     buffer_list.pop(0)
+
+                            #check value of expected seq number against seq number of the newest recieved package
+                            elif(last_seq == expectedseqnum):
+                                print ("Received in order", expectedseqnum)
+
+                                # If packet contains data, send ACK
+                                if len(buffer_list[-1]) > 12:
+                                    expectedseqnum = expectedseqnum + 1
+                                    ack_nr = last_seq
+                                    #the last 4 bits:  S A F R
+                                    # 0 1 0 0  ACK flag set, and the decimal equivalent is 4
+                                    flags = 4
+                                    win = 64                                #Receiver window advertised by server for flow control, set to 64
+                                    data = b''
+                                    ack = create_packet(last_seq, ack_nr, flags, win, data)
+                                    serverSocket.sendto(ack, address)
+                                    prev_seq = last_seq
+                                    prev_buffer = buffer_list[-1]
+                                    ack_list.pop(-1)
+                                    buffer_list.pop(-1)
+
                                     
                             else:
                                 # default? discard packet and resend ACK for most recently received inorder pkt
@@ -219,8 +238,6 @@ def main():
                                 data = b''
                                 ack = create_packet(seq, ack_nr, flags, win, data)
                                 serverSocket.sendto(ack, address)
-                                buffer_list.clear()
-                                ack_list.clear()
 
                 
                     # If FIN packet received, data transmission is complete - send ACK back to client
@@ -295,17 +312,23 @@ def main():
         packet_size = 1460                                              #Set packet size (without header)
         num_packets = (len(data) + packet_size - 1) // packet_size      #Calculate number of packets
         print(f'number of packets={num_packets}')
-        skip = False
+        skip = True
+        skipSR = False
         i = 0
 
         #Loop through packets
-        while i < num_packets:
+        while True:
             print(i)
 
-            if(args.test_case == 'skip_seq' and i == 3 and skip == False):
+            if args.test_case == 'skip_seq' and i == 0 and skip == True and args.reliable_method == 'GBN':
                 print("Kom meg inn i if settningen")
                 i = i + 1
-                skip = True
+                skip = False
+
+            if args.test_case == 'skip_seq' and i == 13 and skip == True and args.reliable_method == 'SR':
+                print("Kom meg inn i SR settningen")
+                skipSR = True
+                skip = False
 
             #Calculate start and end points of the data in this packet
             start = i * (packet_size)
@@ -347,13 +370,11 @@ def main():
 
             #Send file contents to server
             elif args.reliable_method == 'SR':
-                resend, end, prev_ack = SR(msg, clientSocket, sequence_number, args.ip_address, args.port, window, num_packets)
+                end, prev_ack = SR(msg, clientSocket, sequence_number, args.ip_address, args.port, window, num_packets, skipSR)
                 print('Running with SR as reliable method')
 
-                if resend and prev_ack > num_packets - window:
-                    i = i - ((num_packets - prev_ack) + 2)
-                elif resend:
-                    i = i - (window + 2)
+                if skipSR == True:
+                    skipSR = False
 
                 if end:
                     print('File transfer completed successfully')
