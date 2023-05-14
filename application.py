@@ -354,6 +354,11 @@ def main():
                 if end:
                     print('File transfer completed successfully')
                     break
+            
+            #Sending file content without reliable method
+            else: 
+                args.reliable_method = None
+                print('Running without reliable method')
 
 
         # When data transmission is complete, send FIN packet to server
