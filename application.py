@@ -120,7 +120,7 @@ def main():
                         ack_list.append(header_from_msg)
                         contents.write(buffer[12:])
                     
-                    else:
+                    elif len(ack_list) > 0:
                         if args.reliable_method == 'GBN':
                             #if "ack" in test:
                             seq, ack_nr, flags, win = parse_header(ack_list[0])
@@ -180,8 +180,6 @@ def main():
                             if (prev_seq == seq):
                                 expectedseqnum = expectedseqnum - 1
 
-
-
                             if args.test_case == 'skip_ack' and skip_ack:
                                 print('Skipping ack...')
                                 skip_ack = False
@@ -203,8 +201,15 @@ def main():
                                     serverSocket.sendto(ack, address)
                                     prev_seq = seq
                                     prev_buffer = buffer_list[0]
-                                    ack_list.pop(0)
-                                    buffer_list.pop(0)
+                                    
+                                    # If seq appears multiple times in list
+                                    if buffer_list.count(buffer_list[0]) > 1:
+                                        # the removal of all occurrences of a given item using filter() and __ne__
+                                        ack_list = list(filter((ack_list[0]).__ne__, ack_list))
+                                        buffer_list = list(filter((buffer_list[0]).__ne__, buffer_list))
+                                    else:
+                                        ack_list.pop(0)
+                                        buffer_list.pop(0)
 
                             #check value of expected seq number against seq number of the newest recieved package
                             elif(last_seq == expectedseqnum):
