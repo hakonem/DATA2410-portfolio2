@@ -129,10 +129,14 @@ def main():
                             if (prev_seq == seq):
                                 expectedseqnum = expectedseqnum - 1
 
+                            print(seq)
+                            print(expectedseqnum)
+                            print("WE gon light") 
+
                             if args.test_case == 'skip_ack' and skip_ack:
                                 print('Skipping ack...')
                                 skip_ack = False
-                                    
+
                             #check value of expected seq number against seq number received - IN ORDER
                             elif(seq == expectedseqnum):
                                 print ("Received in order", expectedseqnum)
@@ -156,7 +160,7 @@ def main():
                             else:
                                 # default? discard packet and resend ACK for most recently received inorder pkt
                                 print("Received out of order", seq)
-                                ack_nr = seq - 1
+                                ack_nr = 0
                                 #the last 4 bits:  S A F R
                                 # 0 1 0 0  ACK flag set, and the decimal equivalent is 4
                                 flags = 4
@@ -235,7 +239,7 @@ def main():
                             else:
                                 # default? discard packet and resend ACK for most recently received inorder pkt
                                 print("Received out of order", seq)
-                                ack_nr = seq - 1
+                                ack_nr = 0
                                 #the last 4 bits:  S A F R
                                 # 0 1 0 0  ACK flag set, and the decimal equivalent is 4
                                 flags = 4
@@ -318,21 +322,21 @@ def main():
         num_packets = (len(data) + packet_size - 1) // packet_size      #Calculate number of packets
         print(f'number of packets={num_packets}')
         skip = True
-        skipSR = False
+        skipSeq = False
         i = 0
 
         #Loop through packets
         while True:
             print(i)
 
-            if args.test_case == 'skip_seq' and i == 0 and skip == True and args.reliable_method == 'GBN':
+            if args.test_case == 'skip_seq' and i == 13 and skip == True and args.reliable_method == 'GBN':
                 print("Kom meg inn i if settningen")
-                i = i + 1
+                skipSeq = True
                 skip = False
 
-            if args.test_case == 'skip_seq' and i == 13 and skip == True and args.reliable_method == 'SR':
+            if args.test_case == 'skip_seq' and i == 12 and skip == True and args.reliable_method == 'SR':
                 print("Kom meg inn i SR settningen")
-                skipSR = True
+                skipSeq = True
                 skip = False
 
             #Calculate start and end points of the data in this packet
@@ -362,24 +366,22 @@ def main():
 
             #Send file contents to server
             elif args.reliable_method == 'GBN':
-                resend, end, prev_ack = GBN(msg, clientSocket, sequence_number, args.ip_address, args.port, window, num_packets)
+                resend, end, prev_ack = GBN(msg, clientSocket, sequence_number, args.ip_address, args.port, window, num_packets, skipSeq)
                 print('Running with GBN as reliable method')
 
-                if resend and prev_ack > num_packets - window:
-                    i = i - ((num_packets - prev_ack) + 2)
-                elif resend:
-                    i = i - (window + 2)
+                if skipSeq == True:
+                    skipSeq = False
             
                 if end:
                     break
 
             #Send file contents to server
             elif args.reliable_method == 'SR':
-                end, prev_ack = SR(msg, clientSocket, sequence_number, args.ip_address, args.port, window, num_packets, skipSR)
+                end, prev_ack = SR(msg, clientSocket, sequence_number, args.ip_address, args.port, window, num_packets, skipSeq)
                 print('Running with SR as reliable method')
 
-                if skipSR == True:
-                    skipSR = False
+                if skipSeq == True:
+                    skipSeq = False
 
                 if end:
                     print('File transfer completed successfully')

@@ -1,3 +1,4 @@
+
 import socket
 from header import *
 
@@ -11,10 +12,9 @@ prev_ack = 0
 
 #!!!!! if window is greater than num_packets set window = num_packets
 
-def SR(packet, clientSocket, seq_num, ip, port, window, num_packets, skipSR):
+def SR(packet, clientSocket, seq_num, ip, port, window, num_packets, skipSeq):
     #initializes window variables (upper and lower window bounds, position of next seq number)
     global packets
-    global break_out_flag
     global end
     global prev_ack
 
@@ -27,7 +27,7 @@ def SR(packet, clientSocket, seq_num, ip, port, window, num_packets, skipSR):
 
         #	check if the window is full
         if(len(packets) < window):
-            if(skipSR == False):
+            if(skipSeq == False):
                 clientSocket.sendto(packet, (ip, port))
                 #print(packet)
                 print(f'Sent packet with sequence number {seq_num}')
@@ -62,9 +62,9 @@ def SR(packet, clientSocket, seq_num, ip, port, window, num_packets, skipSR):
                                 end = True
                         else:
                             print(f'Received ACK out of order with packet {ack_seq_num}. Resending packeges')
-                            clientSocket.sendto(packets[-1], (ip, port))
+                            clientSocket.sendto(packets[0], (ip, port))
                             #print(packet)
-                            print(f'Sent packet with sequence number {window_seq[-1]}')
+                            print(f'Sent packet with sequence number {window_seq[0]}')
 
                     except socket.timeout:
                         # Resend packet if timeout occurs
@@ -72,8 +72,8 @@ def SR(packet, clientSocket, seq_num, ip, port, window, num_packets, skipSR):
                         clientSocket.sendto(packets[0], (ip, port))
                         #print(packet)
                         print(f'Resent packet with sequence number {window_seq[0]}')
-
-                    if(ack_seq_num == num_packets):
+ 
+                    if(end):
                         break
                 break
             else: break
