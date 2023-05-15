@@ -324,10 +324,23 @@ def main():
         skip = True
         skipSeq = False
         i = 0
+        window = 0
+
+        if(args.reliable_method == 'GBN' or args.reliable_method == 'SR'):
+            while True:
+                window = input("Select window size 5, 10 or 15 : ")
+                # Transform string answer to int
+                window = int(window)
+                
+                #Validate awnser
+                if(window == 5 or window == 10 or window == 15):
+                    break
+                
+                #Print error message for not valid input
+                print("Input is not valid!")
 
         #Loop through packets
         while True:
-            print(i)
 
             if args.test_case == 'skip_seq' and i == 13 and skip == True and args.reliable_method == 'GBN':
                 print("Kom meg inn i if settningen")
@@ -348,7 +361,6 @@ def main():
             #Pack the sequence number into the header
             sequence_number = i+1
             acknowledgment_number = 0
-            window = 5 # fixed window value
             flags = 0 # we are not going to set any flags when we send a data packet
             i = i + 1
 

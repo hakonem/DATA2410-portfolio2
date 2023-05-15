@@ -20,7 +20,7 @@ def GBN(packet, clientSocket, seq_num, ip, port, window, num_packets, skipSeq):
     resend = False
 
     if(window > num_packets):
-        window = num_packets - 1
+        window = num_packets
 
     while True:
 

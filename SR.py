@@ -21,7 +21,7 @@ def SR(packet, clientSocket, seq_num, ip, port, window, num_packets, skipSeq):
     clientSocket.settimeout(0.5)         #Timeout = 500ms
 
     if(window > num_packets):
-        window = num_packets - 1
+        window = num_packets
 
     while True:
 
@@ -35,10 +35,6 @@ def SR(packet, clientSocket, seq_num, ip, port, window, num_packets, skipSeq):
             #		append packet to packets
             packets.append(packet)
             window_seq.append(seq_num)
-            print(window_seq)
-
-            #print(window_seq)
-            #print("TESTER BRAGO")
 
             #If all packeges has been sent then wait for the last ack packets
             if(seq_num) >=  num_packets:
