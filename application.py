@@ -106,14 +106,10 @@ def main():
                         else:
                             serverSocket.sendto(ack, address)
                           
-                    if "ack" not in test:
-                        #if args.reliable_method == 'GBN' or args.reliable_method == 'stop_and_wait':        
-                        # Removes the old elements in the case of a resend cause by timeout
+                    if "ack" not in test:     
+                        # If resent packet has already been received and is in the buffer list
                         if(buffer in buffer_list):
-                            for x in range(len(buffer_list)):
-                                buffer_list.pop()
-                                ack_list.pop()
-                          
+                            pass
                         else: 
                             buffer_list.append(buffer)
                             header_from_msg = buffer[:12]
