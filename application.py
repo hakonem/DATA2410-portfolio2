@@ -2,6 +2,7 @@
 import argparse
 import sys
 from socket import *
+import time
 from header import *
 from stop_and_wait import stop_and_wait
 from gbn import GBN
@@ -87,12 +88,11 @@ def main():
                     buffer,address = serverSocket.recvfrom(1472)
                     test = buffer.decode()
 
+
                     # Send ACK packet to Stop-and-Wait client
                     if args.reliable_method == 'stop_and_wait':
                         header_from_msg = buffer[:12]
                         seq, ack_nr, flags, win = parse_header(header_from_msg)
-                        contents.write(buffer[12:])
-                        
                         ack_nr = seq
                         # the last 4 bits:  S A F R
                         # 0 1 0 0  ACK flag set, and the decimal equivalent is 4
@@ -105,20 +105,21 @@ def main():
                             skip_ack = False
                         else:
                             serverSocket.sendto(ack, address)
-
-                    if args.reliable_method == 'GBN':        
+                          
+                    if "ack" not in test:
+                        #if args.reliable_method == 'GBN' or args.reliable_method == 'stop_and_wait':        
                         # Removes the old elements in the case of a resend cause by timeout
                         if(buffer in buffer_list):
                             for x in range(len(buffer_list)):
                                 buffer_list.pop()
                                 ack_list.pop()
                           
-                    if ("ack" not in test):
-                        buffer_list.append(buffer)
-                        header_from_msg = buffer[:12]
-                        seq, ack_nr, flags, win = parse_header(header_from_msg)
-                        ack_list.append(header_from_msg)
-                        contents.write(buffer[12:])
+                        else: 
+                            buffer_list.append(buffer)
+                            header_from_msg = buffer[:12]
+                            seq, ack_nr, flags, win = parse_header(header_from_msg)
+                            ack_list.append(header_from_msg)
+                            contents.write(buffer[12:])
                     
                     elif len(ack_list) > 0:
                         if args.reliable_method == 'GBN':
@@ -128,10 +129,6 @@ def main():
                             # Revert increase in "expectedseqnum" if packet is resent
                             if (prev_seq == seq):
                                 expectedseqnum = expectedseqnum - 1
-
-                            print(seq)
-                            print(expectedseqnum)
-                            print("WE gon light") 
 
                             if args.test_case == 'skip_ack' and skip_ack:
                                 print('Skipping ack...')
@@ -169,10 +166,7 @@ def main():
                                 ack = create_packet(seq, ack_nr, flags, win, data)
                                 serverSocket.sendto(ack, address)
                                 buffer_list.clear()
-                                ack_list.clear()
-
-
-                        
+                                ack_list.clear()                      
 
                         # Send ACK packet to SR client
                         if args.reliable_method == 'SR':
@@ -226,7 +220,7 @@ def main():
                                     #the last 4 bits:  S A F R
                                     # 0 1 0 0  ACK flag set, and the decimal equivalent is 4
                                     flags = 4
-                                    win = 64                                #Receiver window advertised by server for flow control, set to 64
+                                    win = 64               #Receiver window advertised by server for flow control, set to 64
                                     data = b''
                                     ack = create_packet(last_seq, ack_nr, flags, win, data)
                                     serverSocket.sendto(ack, address)
@@ -235,6 +229,9 @@ def main():
                                     ack_list.pop(-1)
                                     buffer_list.pop(-1)
 
+
+                                    
+                                    
                                     
                             else:
                                 # default? discard packet and resend ACK for most recently received inorder pkt
@@ -258,7 +255,9 @@ def main():
                         # Reopen the contents file in read binary mode
                         with open('packets.bin', 'rb') as contents:
                             # Read contents and print to the screen
-                            print(contents.read())
+                            c = contents.read()
+                            print(c)
+                            print(f'Bytes received: {len(c)}')
                         seq = 0
                         ack_nr = 0
                         #the last 4 bits:  S A F R
@@ -324,20 +323,6 @@ def main():
         skip = True
         skipSeq = False
         i = 0
-        window = 0
-
-        if(args.reliable_method == 'GBN' or args.reliable_method == 'SR'):
-            while True:
-                window = input("Select window size 5, 10 or 15 : ")
-                # Transform string answer to int
-                window = int(window)
-                
-                #Validate awnser
-                if(window == 5 or window == 10 or window == 15):
-                    break
-                
-                #Print error message for not valid input
-                print("Input is not valid!")
 
         #Loop through packets
         while True:
@@ -363,12 +348,15 @@ def main():
             acknowledgment_number = 0
             flags = 0 # we are not going to set any flags when we send a data packet
             i = i + 1
+            window = 5
 
             #msg now holds a packet, including our custom header and data
             msg = create_packet(sequence_number, acknowledgment_number, flags, window, packet_data)
 
             #RELIABLE METHODS
             #Send file contents to server
+            start_time = time.time()
+
             if args.reliable_method == 'stop_and_wait':
                 stop_and_wait(msg, clientSocket, sequence_number, args.ip_address, args.port)
                 print('Running with stop-and-wait as reliable method')
@@ -421,10 +409,11 @@ def main():
         header_from_msg = buffer[:12]
         seq, ack_nr, flags, win = parse_header(header_from_msg)
         if flags == 4:
+            stop_time = time.time()
+            print(f'Total duration: {round((stop_time - start_time)*1000, 3)} ms')
             # Close socket after all data has been sent and received
             print('Client connection closed')
-            clientSocket.close()
-
+            clientSocket.close()        
 
 if __name__ == '__main__':
     main()                                  #Execution of module begins with main()
